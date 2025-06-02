@@ -2,19 +2,16 @@ import requests
 import time
 from datetime import datetime
 import json
-import smtplib
-from email.mime.text import MIMEText
-from email.header import Header
-from config import EMAIL_CONFIG, BLOCK_CONFIG
+from config import WECOM_CONFIG, BLOCK_CONFIG
 
 class BlockAlert:
-    def __init__(self, target_heights, email_config, notify_first_n):
+    def __init__(self, target_heights, wecom_config, early_alert_diff):
         self.target_heights = sorted(target_heights)  # 排序目标区块高度
         self.base_url = "https://mempool.space/api"
         self.last_checked_height = None
-        self.email_config = email_config
+        self.wecom_config = wecom_config
+        self.early_alert_diff = early_alert_diff
         self.notified_heights = set()  # 记录已通知的区块高度
-        self.notify_first_n = notify_first_n
 
     def get_current_height(self):
         try:
@@ -39,19 +36,24 @@ class BlockAlert:
             print(f"获取区块信息时出错: {e}")
             return None
 
-    def send_email(self, subject, content):
+    def send_wecom_alert(self, content):
         try:
-            msg = MIMEText(content, 'plain', 'utf-8')
-            msg['Subject'] = Header(subject, 'utf-8')
-            msg['From'] = self.email_config['from_email']
-            msg['To'] = self.email_config['to_email']
-
-            with smtplib.SMTP_SSL(self.email_config['smtp_server'], self.email_config['smtp_port']) as server:
-                server.login(self.email_config['username'], self.email_config['password'])
-                server.send_message(msg)
-            print(f"邮件发送成功: {subject}")
+            data = {
+                "msgtype": "text",
+                "text": {
+                    "content": f"比特币区块提醒\n{content}"
+                }
+            }
+            response = requests.post(
+                self.wecom_config['webhook_url'],
+                json=data
+            )
+            if response.status_code == 200:
+                print(f"企业微信提醒发送成功")
+            else:
+                print(f"企业微信通知发送失败: {response.text}")
         except Exception as e:
-            print(f"发送邮件时出错: {e}")
+            print(f"发送企业微信通知时出错: {e}")
 
     def format_block_info(self, block_info):
         info = []
@@ -73,11 +75,24 @@ class BlockAlert:
         print(self.format_block_info(block_info))
         print("==============\n")
 
-        # 如果是前N个区块，发送邮件通知
-        if block_info['height'] in self.target_heights[:self.notify_first_n]:
-            subject = f"比特币区块提醒 - 区块高度 {block_info['height']}"
-            content = f"=== 区块提醒 ===\n{self.format_block_info(block_info)}\n=============="
-            self.send_email(subject, content)
+        # 发送企业微信通知
+        content = self.format_block_info(block_info)
+        self.send_wecom_alert(content)
+
+    def check_early_alert(self, current_height):
+        for target_height in self.target_heights:
+            if current_height >= (target_height - self.early_alert_diff) and current_height < target_height:
+                if current_height not in self.notified_heights:
+                    alert_content = f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    alert_content += f"当前区块高度: {current_height}\n"
+                    alert_content += f"目标区块高度: {target_height}\n"
+                    alert_content += f"剩余区块数: {target_height - current_height}\n"
+                    alert_content += f"预计到达时间: 约 {(target_height - current_height) * 10} 分钟"
+                    self.send_wecom_alert(alert_content)
+                    self.notified_heights.add(current_height)
+                    print("\n=== 提前提醒已发送 ===")
+                    print(alert_content)
+                    print("====================\n")
 
     def monitor(self, check_interval=60):
         print(f"开始监控区块高度: {', '.join(map(str, self.target_heights))}")
@@ -94,6 +109,9 @@ class BlockAlert:
             if current_height != self.last_checked_height:
                 print(f"当前区块高度: {current_height}", end="\r")
                 self.last_checked_height = current_height
+
+            # 检查是否需要发送提前提醒
+            self.check_early_alert(current_height)
 
             # 检查所有目标区块
             for target_height in self.target_heights:
@@ -113,7 +131,7 @@ class BlockAlert:
 if __name__ == "__main__":
     alert = BlockAlert(
         target_heights=BLOCK_CONFIG['target_heights'],
-        email_config=EMAIL_CONFIG,
-        notify_first_n=BLOCK_CONFIG['notify_first_n_blocks']
+        wecom_config=WECOM_CONFIG,
+        early_alert_diff=BLOCK_CONFIG['early_alert_diff']
     )
     alert.monitor(check_interval=BLOCK_CONFIG['check_interval']) 
