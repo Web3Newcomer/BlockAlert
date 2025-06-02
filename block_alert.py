@@ -55,46 +55,26 @@ class BlockAlert:
         except Exception as e:
             print(f"发送企业微信通知时出错: {e}")
 
-    def format_block_info(self, block_info):
+    def format_alert(self, current_height, target_height):
         info = []
         info.append(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        info.append(f"区块高度: {block_info['height']}")
-        info.append(f"区块哈希: {block_info['id']}")
-        info.append(f"区块大小: {block_info['size']} 字节")
-        info.append(f"交易数量: {block_info['tx_count']}")
-        info.append(f"区块时间戳: {datetime.fromtimestamp(block_info['timestamp']).strftime('%Y-%m-%d %H:%M:%S')}")
-        info.append(f"区块权重: {block_info['weight']} WU")
-        info.append(f"区块版本: {block_info['version']}")
-        info.append(f"默克尔根: {block_info['merkle_root']}")
-        info.append(f"难度: {block_info['difficulty']}")
+        info.append(f"当前区块高度: {current_height}")
+        info.append(f"目标区块高度: {target_height}")
+        info.append(f"剩余区块数: {target_height - current_height}")
+        info.append(f"预计到达时间: 约 {(target_height - current_height) * 10} 分钟")
         return "\n".join(info)
 
-    def send_alert(self, block_info):
-        # 打印到控制台
-        print("\n=== 区块提醒 ===")
-        print(self.format_block_info(block_info))
-        print("==============\n")
-
-        # 发送企业微信通知
-        content = self.format_block_info(block_info)
-        self.send_wecom_alert(content)
-
     def check_alert(self, current_height):
-        # 检查是否需要发送提醒
         for target_height in self.target_heights:
-            # 检查提前提醒的区块
-            if current_height >= (target_height - self.early_alert_diff) and current_height < target_height:
-                if current_height not in self.notified_heights:
-                    alert_content = f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-                    alert_content += f"当前区块高度: {current_height}\n"
-                    alert_content += f"目标区块高度: {target_height}\n"
-                    alert_content += f"剩余区块数: {target_height - current_height}\n"
-                    alert_content += f"预计到达时间: 约 {(target_height - current_height) * 10} 分钟"
+            # 检查目标区块的前三个区块
+            for i in range(1, self.early_alert_diff + 1):
+                check_height = target_height - i
+                if current_height >= check_height and check_height not in self.notified_heights:
+                    alert_content = self.format_alert(current_height, target_height)
                     self.send_wecom_alert(alert_content)
-                    self.notified_heights.add(current_height)
-                    print("\n=== 提前提醒已发送 ===")
+                    self.notified_heights.add(check_height)
+                    print(f"\n区块 {check_height} 提醒已发送")
                     print(alert_content)
-                    print("====================\n")
             
             # 如果达到目标区块，返回True表示监控结束
             if current_height >= target_height:
