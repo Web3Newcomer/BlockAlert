@@ -20,7 +20,11 @@ cd clock
 
 2. 安装依赖：
 ```bash
-pip3 install requests
+# 使用 pip 安装依赖
+pip3 install -r requirements.txt
+
+# 或者直接安装 requests
+pip3 install requests==2.31.0
 ```
 
 3. 配置企业微信：
@@ -79,6 +83,12 @@ BLOCK_CONFIG = {
     'early_alert_diff': 3,  # 提前多少个区块发出提醒
 }
 ```
+
+## 依赖说明
+
+项目依赖：
+- Python 3.6+
+- requests==2.31.0
 
 ## 许可证
 
