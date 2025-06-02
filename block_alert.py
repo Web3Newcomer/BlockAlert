@@ -79,8 +79,10 @@ class BlockAlert:
         content = self.format_block_info(block_info)
         self.send_wecom_alert(content)
 
-    def check_early_alert(self, current_height):
+    def check_alert(self, current_height):
+        # 检查是否需要发送提醒
         for target_height in self.target_heights:
+            # 检查提前提醒的区块
             if current_height >= (target_height - self.early_alert_diff) and current_height < target_height:
                 if current_height not in self.notified_heights:
                     alert_content = f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
@@ -93,6 +95,11 @@ class BlockAlert:
                     print("\n=== 提前提醒已发送 ===")
                     print(alert_content)
                     print("====================\n")
+            
+            # 如果达到目标区块，返回True表示监控结束
+            if current_height >= target_height:
+                return True
+        return False
 
     def monitor(self, check_interval=60):
         print(f"开始监控区块高度: {', '.join(map(str, self.target_heights))}")
@@ -110,20 +117,9 @@ class BlockAlert:
                 print(f"当前区块高度: {current_height}", end="\r")
                 self.last_checked_height = current_height
 
-            # 检查是否需要发送提前提醒
-            self.check_early_alert(current_height)
-
-            # 检查所有目标区块
-            for target_height in self.target_heights:
-                if current_height >= target_height and target_height not in self.notified_heights:
-                    block_info = self.get_block_info(target_height)
-                    if block_info:
-                        self.send_alert(block_info)
-                        self.notified_heights.add(target_height)
-
-            # 如果所有目标区块都已通知，则退出
-            if len(self.notified_heights) == len(self.target_heights):
-                print("\n所有目标区块已通知完成！")
+            # 检查是否需要发送提醒
+            if self.check_alert(current_height):
+                print("\n目标区块已到达，监控结束！")
                 break
 
             time.sleep(check_interval)

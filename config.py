@@ -6,7 +6,7 @@ WECOM_CONFIG = {
 # 区块监控配置
 BLOCK_CONFIG = {
     'target_heights': [
-        899473,  # 目标区块
+        899573,  # 目标区块
     ],
     'check_interval': 60,  # 检查间隔（秒）
     'early_alert_diff': 3,  # 提前多少个区块发出提醒
